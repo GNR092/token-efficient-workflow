@@ -15,7 +15,8 @@ Carga este skill como primer paso para cualquier solicitud que incluya intencion
 
 Si el skill no aparece en la lista disponible, continua con `code-search` y reporta el problema como cache/catalogo de skills. Verifica despues con `opencode debug skill` y confirma que exista en esta ruta de OpenCode:
 
-- `C:\Users\Gener Can\.agents\skills\token-efficient-workflow\SKILL.md`
+- Windows: `%USERPROFILE%\.agents\skills\token-efficient-workflow\SKILL.md`
+- Linux/macOS: `$HOME/.agents/skills/token-efficient-workflow/SKILL.md`
 
 OpenCode puede cachear el catalogo al iniciar la sesion. Si `opencode debug skill` lo muestra pero `skill({ name: "token-efficient-workflow" })` falla, reiniciar la sesion o servidor de OpenCode es la solucion esperada.
 
@@ -46,6 +47,35 @@ Debes cargar los skills en este orden según la tarea:
 1. `code-search` para ubicar archivos, símbolos, referencias y comportamiento.
 2. `docx-generator` solo si el usuario pidió generar un `.docx`.
 3. `commit-msg` solo si el usuario pidió mensaje de commit o hacer commit.
+
+## Compatibilidad de sistema operativo
+
+Antes de ejecutar comandos de shell, detectar el sistema operativo y elegir la sintaxis correcta. No mezcles PowerShell con Bash en una misma instruccion.
+
+Deteccion recomendada:
+
+```text
+Si el entorno reporta Platform: win32, usa Windows/PowerShell.
+Si el entorno reporta Linux, macOS, darwin o una shell POSIX, usa Bash.
+```
+
+Fallback desde terminal:
+
+```powershell
+$IsWindows
+$env:OS
+```
+
+```bash
+uname -s
+```
+
+Rutas base por sistema:
+
+- Windows: usar `$env:USERPROFILE` en PowerShell y `%USERPROFILE%` solo en texto/documentacion.
+- Linux/macOS: usar `$HOME`.
+- Para rutas de `codesearch` en respuestas, preferir rutas relativas al repositorio cuando sea posible.
+- Para `filter_path`, usar separadores `/` porque funcionan mejor como filtros portables: `Documents/Proyectos/ticket/`.
 
 ## Política de ahorro de tokens
 
@@ -175,6 +205,63 @@ Si `code-search` no esta sano, no avances con exploracion amplia. Primero corrig
 ## Recuperacion de code-search
 
 Usa esta seccion cuando las busquedas fallen con errores como `Index not built`, `Vector store empty`, `LockBusy`, `Failed to acquire index lock` o `FileAlreadyExists("*.del")`.
+
+Si `codesearch index` se ejecuta desde una carpeta padre y falla con `Multiple git repositories found in subdirectories`, no intentes forzar un indice unico. Primero detecta el sistema operativo, luego ejecuta el bloque correspondiente. `codesearch` debe ejecutarse dentro de cada repositorio Git por separado y esperar a que termine cada indexacion antes de iniciar la siguiente.
+
+Windows/PowerShell:
+
+```powershell
+$base = Join-Path $env:USERPROFILE "Documents\Proyectos"
+$repos = @(
+  (Join-Path $base "ticket"),
+  (Join-Path $base "Timbrado"),
+  (Join-Path $base "Updaters")
+)
+
+foreach ($repo in $repos) {
+  if (Test-Path (Join-Path $repo ".git")) {
+    Write-Host "Indexando $repo"
+    codesearch index $repo
+    if ($LASTEXITCODE -ne 0) { throw "Fallo la indexacion de $repo" }
+  }
+}
+```
+
+Linux/macOS/Bash:
+
+```bash
+base="$HOME/Documents/Proyectos"
+repos=(
+  "$base/ticket"
+  "$base/Timbrado"
+  "$base/Updaters"
+)
+
+for repo in "${repos[@]}"; do
+  if [ -d "$repo/.git" ]; then
+    printf 'Indexando %s\n' "$repo"
+    codesearch index "$repo" || exit 1
+  fi
+done
+```
+
+Despues abre o sirve OpenCode desde el repositorio que se va a analizar, no desde la carpeta padre `Proyectos`. Usa el bloque que corresponda al sistema operativo detectado.
+
+Windows/PowerShell:
+
+```powershell
+cd (Join-Path $env:USERPROFILE "Documents\Proyectos\ticket")
+opencode serve
+```
+
+Linux/macOS/Bash:
+
+```bash
+cd "$HOME/Documents/Proyectos/ticket"
+opencode serve
+```
+
+Si el usuario pide indexar todos los repositorios, ejecuta el patron anterior y espera a que finalice. No respondas como completado hasta validar cada repositorio con `codesearch doctor` o una busqueda de prueba desde su carpeta.
 
 1. Diagnostica el estado:
 
