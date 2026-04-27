@@ -48,6 +48,16 @@ Debes cargar los skills en este orden según la tarea:
 2. `docx-generator` solo si el usuario pidió generar un `.docx`.
 3. `commit-msg` solo si el usuario pidió mensaje de commit o hacer commit.
 
+## Flujo recomendado
+
+Usa este orden para ahorrar tokens y evitar cargar contexto innecesario:
+
+```text
+token-efficient-workflow -> code-search -> docx-generator -> commit-msg
+```
+
+`code-search` debe ser el primer paso para ubicar archivos, símbolos y referencias. `docx-generator` y `commit-msg` deben consumir un resumen compacto de evidencia, no el repositorio completo.
+
 ## Compatibilidad de sistema operativo
 
 Antes de ejecutar comandos de shell, detectar el sistema operativo y elegir la sintaxis correcta. No mezcles PowerShell con Bash en una misma instruccion.
@@ -108,6 +118,38 @@ codesearch index --list
 Si MCP está disponible, prefiere MCP sobre CLI.
 
 Si `codesearch_index_status()` falla pero CLI funciona, usa CLI como fallback y reporta que el MCP necesita reiniciarse.
+
+### 1.1 Exclusiones obligatorias
+
+Ignora por completo estas carpetas durante busquedas, lecturas, indexacion, resumenes y generacion de documentacion:
+
+- `.git/`
+- `__pycache__/`
+- `.pytest_cache/`
+- `.mypy_cache/`
+- `.ruff_cache/`
+- `node_modules/`
+- `vendor/`
+- `dist/`
+- `build/`
+- `coverage/`
+- `.codesearch.db/`
+
+Si algun resultado aparece dentro de una ruta excluida, descartalo y repite la busqueda con `filter_path` mas especifico o filtros de exclusion.
+
+Ejemplo de fallback textual solo cuando `code-search` no pueda resolverlo:
+
+```bash
+rg "texto_a_buscar" \
+  --glob '!**/.git/**' \
+  --glob '!**/__pycache__/**' \
+  --glob '!**/node_modules/**' \
+  --glob '!**/vendor/**' \
+  --glob '!**/dist/**' \
+  --glob '!**/build/**' \
+  --glob '!**/coverage/**' \
+  --glob '!**/.codesearch.db/**'
+```
 
 ### 2. Siempre limitar resultados
 
