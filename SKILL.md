@@ -45,8 +45,9 @@ Después usa búsqueda semántica, referencias y filtros por ruta para obtener r
 Debes cargar los skills en este orden según la tarea:
 
 1. `code-search` para ubicar archivos, símbolos, referencias y comportamiento.
-2. `docx-generator` solo si el usuario pidió generar un `.docx`.
-3. `commit-msg` solo si el usuario pidió mensaje de commit o hacer commit.
+2. `searchmcp` cuando se requiera información de la web (búsquedas web, información actualizada, etc.).
+3. `docx-generator` solo si el usuario pidió generar un `.docx`.
+4. `commit-msg` solo si el usuario pidió mensaje de commit o hacer commit.
 
 ## Flujo recomendado
 
@@ -86,6 +87,120 @@ Rutas base por sistema:
 - Linux/macOS: usar `$HOME`.
 - Para rutas de `codesearch` en respuestas, preferir rutas relativas al repositorio cuando sea posible.
 - Para `filter_path`, usar separadores `/` porque funcionan mejor como filtros portables: `Documents/Proyectos/ticket/`.
+
+## Python environments y múltiples versiones
+
+Cuando trabajes con proyectos Python que tengan múltiples entornos, ten en cuenta que existen varios sistemas de entorno:
+
+### Sistemas de entorno comunes
+
+- **uv** (crea `.venv` en el proyecto, activación con `uv run` o `.venv/Scripts/python`)
+- **venv/virtualenv** (crea carpeta `venv/` o `.venv`)
+- **conda** (`conda env list`, `conda run -n`)
+- **pyenv** (`pyenv versions`, `pyenv local`)
+- **system Python** (directo, sin entorno)
+- **Docker** (Python dentro de contenedor)
+
+El patrón `.venv` es el standard de uv y también es común en proyectos que usan `python -m venv .venv`.
+
+### Deteccion de entorno activo
+
+```powershell
+# Cualquier sistema
+python --version
+Get-Command python  # Windows PowerShell
+
+# uv (buscar .venv o uv.lock en el proyecto)
+if (Test-Path ".venv") { Write-Host "uv/venv: .venv detected" }
+if (Test-Path "uv.lock") { Write-Host "uv project" }
+
+# conda
+conda env list
+$env:CONDA_DEFAULT_ENV
+
+# pyenv
+pyenv version
+```
+
+```bash
+# Cualquier sistema
+python --version
+which python
+
+# uv
+ls .venv 2>/dev/null && echo "venv detected"
+test -f uv.lock && echo "uv project"
+
+# conda
+conda env list
+
+# pyenv
+pyenv versions
+```
+
+### Ejecutar en entorno especifico
+
+```powershell
+# uv (recomendado para .venv)
+uv run python -c "print('OK')"
+
+# .venv directo (Windows)
+.\.venv\Scripts\python.exe -c "print('OK')"
+
+# .venv directo (Linux/macOS)
+./.venv/bin/python -c "print('OK')"
+
+# venv (carpeta venv/)
+.\venv\Scripts\python.exe -c "print('OK')"
+./venv/bin/python -c "print('OK')"
+
+# conda
+conda run -n nombre_entorno python -c "print('OK')"
+
+# pyenv
+~/.pyenv/versions/3.10.0/bin/python -c "print('OK')"
+
+# system
+python -c "print('OK')"
+```
+
+```bash
+# uv (recomendado para .venv)
+uv run python -c "print('OK')"
+
+# .venv directo
+./.venv/bin/python -c "print('OK')"
+
+# venv
+venv/bin/python -c "print('OK')"
+
+# conda
+conda run -n nombre_entorno python -c "print('OK')"
+
+# pyenv
+~/.pyenv/versions/3.10.0/bin/python -c "print('OK')"
+
+# system
+python -c "print('OK')"
+```
+
+**Nota para uv**: `uv run` detecta automáticamente el `.venv` en el proyecto sin necesidad de activación.
+
+### Compatibilidad de versiones
+
+- MCP SDK (Model Context Protocol) de Anthropic requiere **Python 3.10+**
+- ChromaDB requiere Python compatible según su versión instalada
+- sentence-transformers funciona en 3.9+ pero con MCP se necesita 3.10+
+- Si un paquete no esta disponible para la version del proyecto, se debe actualizar la version de Python del entorno
+
+### Empaquetado de proyectos Python
+
+Cuando el usuario pida generar binarios o Docker para su proyecto:
+
+1. **Docker (recomendado para servidores)** — crear Dockerfile que incluya Python, dependencias y código. Portable, rollback fácil.
+2. **PyInstaller/Nuitka** — binarios standalone pero requiere build cruzado para Linux desde Windows (usar Docker). Tamaño ~200MB por binario.
+
+Regla: no asumir que el servidor destino tiene Python instalado. Si el proyecto usa MCP SDK, requiere Python 3.10+ en el servidor.
 
 ## Política de ahorro de tokens
 
@@ -364,13 +479,84 @@ Usa este flujo si el usuario pide mensaje de commit.
 
 ```bash
 git status --short
-git diff --cached --name-only
-git diff --cached --stat
+git log -3 --oneline
+git diff --name-only
 ```
 
-3. Solo si el stat no basta, revisa diffs puntuales por archivo.
+3. Solo si es necesario, revisa diffs puntuales por archivo.
 4. Si el cambio afecta código y no queda claro, usa `code-search` para entender el módulo sin leer de más.
 5. Genera un mensaje en español, sin prefijos tipo `feat:` o `fix:`.
+
+### Commitear cambios
+
+Si el usuario pide hacer el commit:
+
+```bash
+git add <archivos>
+git commit -m "Titulo del commit" -m "Body explicativo si es necesario"
+git status --short
+```
+
+Verificar siempre `git status --short` despues del commit para confirmar que el repo esta limpio.
+
+### Archivos no relacionados
+
+Si existen archivos en el working directory que no pertenecen al commit (ej: build scripts, spec files, archivos de configuracion de empaquetado), no incluirlos automáticamente. Solo hacer commit de lo que el usuario confirme explícitamente.
+
+## Flujo D: búsqueda web integrada con codesearch (ahorro de tokens)
+
+Usa este flujo cuando necesites información de la web y quieras guardarla para consultas futuras sin gastar tokens adicionales.
+
+### Principio
+
+**"Buscar en web una sola vez, preguntar después con codesearch infinitamente"**
+
+### Pasos
+
+1. **Búsqueda web**: Usa `searchmcp.search_and_save(query)` para buscar y guardar en `.search/`
+
+2. **Indexar**: Ejecuta `codesearch index` para que codesearch pueda buscar en los resultados
+
+3. **Consultas siguientes**: Usa `codesearch_semantic_search()` sobre la carpeta `.search/`
+
+### Estructura de archivos
+
+```
+proyecto/
+├── .search/                    # Búsquedas guardadas
+│   └── {timestamp}/          # Una subcarpeta por búsqueda
+│       ├── results.md         # Título, URL, snippet
+│       └── query.txt          # Query original para referencia
+└── ...
+```
+
+### Comandos
+
+```bash
+# Búsqueda web y guardar
+searchmcp search_and_save("consulta", max_results=10)
+
+# Indexar resultados (Windows)
+codesearch index --sync
+
+# Buscar en resultados guardados
+codesearch search "pregunta sobre resultados" --filter-path ".search/"
+```
+
+### Detalle de costos
+
+| Paso | Herramienta | Costo |
+|------|-------------|-------|
+| Búsqueda web | searchmcp | ~100-500 tokens API |
+| Guardar en .search/ | filesystem | 0 tokens |
+| Indexar | codesearch | 0 tokens |
+| Consultas futuras | codesearch | 0 tokens API |
+
+### Recomendación
+
+- Usa `search_and_save` en lugar de `search` cuando quieras guardar resultados
+- Re-indexa con `--sync` después de guardar nuevas búsquedas
+- Para preguntas sobre resultados previos, usa codesearch directamente sin repetir búsqueda web
 
 ## Reglas para evitar gasto innecesario
 
