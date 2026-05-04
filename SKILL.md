@@ -20,19 +20,66 @@ Si el skill no aparece en la lista disponible, continua con `code-search` y repo
 
 OpenCode puede cachear el catalogo al iniciar la sesion. Si `opencode debug skill` lo muestra pero `skill({ name: "token-efficient-workflow" })` falla, reiniciar la sesion o servidor de OpenCode es la solucion esperada.
 
-Antes de leer archivos grandes o explorar carpetas completas, usa `code-search` para ubicar el código relevante.
+**Fallback con find-skills**: si el skill no aparece tras reiniciar, usa `find-skills` para localizarlo o verificar que el archivo existe en la ruta correcta.
 
-No hagas esto como primera opción:
+## Tabla de contenidos
 
-```bash
-cat archivo_grande.php
-find . -type f
-ls -R
-leer directorios completos
-abrir muchos archivos completos
+- [Activación rápida](#activación-rápida-ejemplos) — Prompts que disparan este skill
+- [Regla principal](#regla-principal) — Qué hacer antes de leer archivos completos
+- [Qué NO hacer](#qué-no-hacer-primeras-opciones)
+- [Skills usados](#skills-usados) — Orden de carga según la tarea
+- [Flujo A: análisis de código](#flujo-a-análisis-de-código-con-mínimo-contexto)
+- [Flujo B: generar DOCX](#flujo-b-generar-docx-desde-análisis-de-código)
+- [Flujo C: generar mensaje de commit](#flujo-c-generar-mensaje-de-commit-con-mínimo-contexto)
+- [Flujo D: búsqueda web integrada](#flujo-d-búsqueda-web-integrada-con-codesearch-ahorro-de-tokens)
+- [Troubleshooting express](#troubleshooting-express)
+- [Recuperación de code-search](#recuperacion-de-code-search)
+- [Skills opcionales recomendados](#skills-opcionales-recomendados)
+- [Reglas para evitar gasto innecesario](#reglas-para-evitar-gasto-innecesario)
+- [Respuesta final esperada](#respuesta-final-esperada)
+
+## Activación rápida (ejemplos)
+
+Este skill se activa automáticamente cuando el usuario escriba o diga algo como:
+
+```
+"busca dónde se valida el rol de admin"
+"encuentra el método que aprueba solicitudes"
+"explora el módulo de compras"
+"analiza cómo funciona la autenticación"
+"busca código relacionado con pagos"
+"qué archivos tratan sobre requisiciones"
+"localiza la función que genera órdenes"
+"revisar código del controlador X"
+"entender el modelo de usuarios"
+"documentar el flujo de approval"
+"generar docx del análisis"
+"hacer commit de los cambios"
+"preparar mensaje de commit"
+"qué cambios hay en git"
+"ahorrar tokens en esta búsqueda"
 ```
 
-Haz esto primero:
+Antes de leer archivos grandes o explorar carpetas completas, usa `code-search` para ubicar el código relevante.
+
+## Qué NO hacer (primeras opciones)
+
+Evita estas acciones como primera opción — siempre hay una alternativa que gasta menos tokens:
+
+```
+❌ cat archivo_grande.php
+❌ find . -type f
+❌ ls -R
+❌ leer directorios completos
+❌ abrir muchos archivos completos
+❌ copiar archivos completos en la respuesta
+❌ pegar resultados largos de búsquedas completas
+❌ abrir documentación extensa salvo que sea necesaria
+❌ repetir el mismo hallazgo en varias secciones
+❌ documentar comportamiento inferido como si fuera confirmado
+```
+
+**En su lugar, haz esto:**
 
 ```text
 skill({ name: "code-search" })
@@ -40,14 +87,72 @@ skill({ name: "code-search" })
 
 Después usa búsqueda semántica, referencias y filtros por ruta para obtener resultados compactos.
 
+## Skills opcionales recomendados
+
+Estos skills complementan el flujo principal según el tipo de tarea. Se cargan bajo demanda, no automáticamente.
+
+### Por tipo de tarea
+
+| Tarea | Skill a cargar |
+|-------|---------------|
+| Análisis de código | `code-search` |
+| Cambios de código | `lint-format` + `test-runner` + `security-check` |
+| Commit / PR | `commit-msg` → `pr-writer` → `changelog-release` |
+| Datos / Infraestructura | `postgresqldb` + `migration-safety` + `ci-triage` |
+| Preguntas generales / web | `searchmcp` |
+| Diseño de interfaces | `interface-design` |
+
+### Integración con el flujo principal
+
+```
+Búsqueda/análisis:
+  token-efficient-workflow → code-search
+
+Si hay cambios de código:
+  token-efficient-workflow → code-search → lint-format → test-runner → security-check
+
+Si hay entrega:
+  token-efficient-workflow → code-search → commit-msg → pr-writer → changelog-release
+
+Si toca datos/infra:
+  token-efficient-workflow → code-search → postgresqldb → migration-safety → ci-triage
+```
+
+### Descripción breve de cada skill opcional
+
+- **`lint-format`**: reglas de calidad automáticas (`ruff/eslint/prettier/php-cs-fixer`) con política "arregla solo lo tocado".
+- **`test-runner`**: estandariza qué pruebas correr por stack (`pytest`, `npm test`, `phpunit`), estrategia rápida→completa, y cómo reportar fallos.
+- **`security-check`**: escaneo de secretos, dependencias vulnerables y revisión básica de riesgos antes de commit/PR.
+- **`pr-writer`**: genera descripción de PR con resumen, impacto, riesgos, checklist de validación y notas de rollback.
+- **`changelog-release`**: crea notas de versión y clasificación semántica de cambios.
+- **`postgresqldb`**: guía para conectar Node.js a PostgreSQL en modo solo lectura, consultas seguras y patrón de uso del toolkit MCP.
+- **`migration-safety`**: checklist para migraciones seguras (backups, compatibilidad, pasos de rollback).
+- **`ci-triage`**: guía para diagnosticar fallos de CI rápido (tests flaky, lint, permisos, paths).
+- **`interface-design`**: dashboards, admin panels, apps, tools y productos interactivos.
+
+### Reglas de activación
+
+Carga un skill opcional cuando detectes intención explícita:
+
+- `lint-format`: usuario menciona "lint", "formatear", "calidad", "estilo"
+- `test-runner`: usuario menciona "test", "prueba", "correr tests", "pytest"
+- `security-check`: usuario menciona "seguridad", "secretos", "vulnerabilidad", "scan"
+- `pr-writer`: usuario menciona "PR", "pull request", "descripción de cambios"
+- `changelog-release`: usuario menciona "changelog", "notas de versión", "release"
+- `postgresqldb`: usuario menciona "PostgreSQL", "postgres", "base de datos", "DB", "consulta SQL", "MCP postgres"
+- `migration-safety`: usuario menciona "migración", "DB", "database", "rollback"
+- `ci-triage`: usuario menciona "CI falló", "tests rotos", "pipeline"
+- `interface-design`: usuario menciona "dashboard", "UI", "interfaz", "panel"
+
 ## Skills usados
 
 Debes cargar los skills en este orden según la tarea:
 
 1. `code-search` para ubicar archivos, símbolos, referencias y comportamiento.
-2. `searchmcp` cuando se requiera información de la web (búsquedas web, información actualizada, etc.).
-3. `docx-generator` solo si el usuario pidió generar un `.docx`.
-4. `commit-msg` solo si el usuario pidió mensaje de commit o hacer commit.
+2. `postgresqldb` cuando se requiera conexión a PostgreSQL o consultas SQL.
+3. `searchmcp` cuando se requiera información de la web (búsquedas web, información actualizada, etc.).
+4. `docx-generator` solo si el usuario pidió generar un `.docx`.
+5. `commit-msg` solo si el usuario pidió mensaje de commit o hacer commit.
 
 ## Flujo recomendado
 
@@ -359,6 +464,19 @@ Ese resumen compacto es el contexto que deben consumir los demás skills.
 
 Si `code-search` no esta sano, no avances con exploracion amplia. Primero corrige el indice o usa una busqueda textual puntual con `grep`/`Glob` solo como fallback temporal.
 
+## Troubleshooting express
+
+Errores comunes y solución inmediata (antes de ir a recuperación larga):
+
+| Error | Solución |
+|-------|----------|
+| `Index not built` / `Vector store empty` | `codesearch index` |
+| `LockBusy` / `Failed to acquire index lock` | Esperar 5s o matar procesos `codesearch.exe` duplicados |
+| `FileAlreadyExists("*.del")` | `codesearch index --force` o reindexar |
+| `Multiple git repositories found` | Ejecutar `codesearch index` dentro de cada repositorio por separado |
+| MCP no responde pero CLI sí | Usar CLI como fallback temporal, reportar que MCP necesita reiniciarse |
+| `codesearch_index_status()` falla | Verificar con `codesearch doctor` y `codesearch index --list` |
+
 ## Recuperacion de code-search
 
 Usa esta seccion cuando las busquedas fallen con errores como `Index not built`, `Vector store empty`, `LockBusy`, `Failed to acquire index lock` o `FileAlreadyExists("*.del")`.
@@ -577,6 +695,52 @@ Solo aumenta el contexto cuando ocurra una de estas condiciones:
 - se requiere modificar código
 - se requiere generar documentación formal con trazabilidad
 - el usuario pide explicación detallada
+
+## Múltiples preguntas en un solo mensaje
+
+Cuando el usuario haga varias preguntas en un mismo mensaje:
+
+1. **Identifica la intención principal** — Responde primero la más relevante o la que defina el alcance.
+2. **Divide las demás en sub-tareas** — Si son 3+ preguntas relacionadas, предложи решение по частям.
+3. **Usa el formato compacto** — Cada hallazgo en 2-3 líneas máximo.
+4. **Sugiere siguiente paso** — Al terminar, pregúntale cuál quiere abordar primero.
+
+**Ejemplo:**
+
+> "busca el modelo de Usuario, dónde se usa en Controllers y si hay tests"
+
+```
+✅ Respuesta:
+1. Modelo: app/Models/Usuario.php — maneja CRUD de usuarios
+2. Controllers: 3 referencias en app/Controllers/ (Login, Perfil, Admin)
+3. Tests: no hay tests directos para ese modelo
+
+Siguiente: ¿quieres que revise los tests del Login controller o profundizo en el modelo?
+```
+
+## Contexto insuficiente: cuándo detenerse
+
+Usa este criterio antes deforzar una búsqueda o inventar una respuesta:
+
+**Detente y pide más información cuando:**
+
+- la consulta es demasiado vaga (`busca algo de pagos`)
+- el símbolo no aparece en el índice y no hay fallback claro
+- los resultados son contradictorios sin poder discriminarlos
+- el usuario pide modificar código pero no hay evidencia clara de dónde
+
+**Qué reportar en ese caso:**
+
+```text
+❌ No tengo suficiente contexto para responder con confianza.
+Necesito:
+1. Más specifics sobre qué buscas (módulo, funcionalidad, archivo)
+2. O el nombre exacto de un símbolo/método/controlador
+
+Alternativa: puedo buscar con términos más amplios, pero los resultados pueden ser imprecisos.
+```
+
+## Reglas para evitar gasto innecesario
 
 ## Respuesta final esperada
 
