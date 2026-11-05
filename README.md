@@ -4,11 +4,7 @@ Skill orquestador que activa `code-search` primero, ahorra tokens y aplica polí
 
 ## Uso
 
-Carga el skill:
-
-```
-skill({ name: "token-efficient-workflow" })
-```
+Carga el skill `token-efficient-workflow` desde el catálogo disponible.
 
 Se activa automáticamente cuando el usuario pide: **buscar**, **analizar**, **explorar**, **revisar código**, **documentar**, **generar DOCX**, **hacer commit** o **ahorrar tokens**.
 
@@ -38,10 +34,7 @@ token-efficient-workflow → code-search → docx-generator / commit-msg
 
 Antes de buscar en una sesión nueva:
 
-```bash
-codesearch_index_status()
-codesearch_find_databases()
-```
+Usa la herramienta de estado disponible en `code-search`; los nombres varían entre versiones. Si el MCP no ofrece estado, usa la CLI si está instalada: `codesearch doctor` y `codesearch index --list`.
 
 Estado esperado: `indexed=true`, `status="ready"`, `total_chunks > 0`.
 
@@ -50,11 +43,13 @@ Estado esperado: `indexed=true`, `status="ready"`, `total_chunks > 0`.
 | Error | Solución |
 |---|---|
 | `Index not built` | `codesearch index` |
-| `LockBusy` | Detener procesos `codesearch mcp` duplicados, luego reindexar |
+| `LockBusy` | Inspeccionar procesos y pedir autorización antes de detener uno o reindexar |
 | `Multiple git repositories found` | Indexar cada repo por separado, no desde carpeta padre |
 | `FileAlreadyExists("*.del")` | Reindexar con `codesearch index --force` |
 
 ## Indexación multi-repositorio (Windows)
+
+Los repositorios de las listas son ejemplos fijos; no se descubren otros automáticamente. Sustituye las rutas por el alcance confirmado por el usuario.
 
 ```powershell
 $base = Join-Path $env:USERPROFILE "Documents\Proyectos"
@@ -120,4 +115,4 @@ Antes de pasar a `docx-generator` o `commit-msg`, resumir en este formato:
 
 - El skill se cachea al iniciar OpenCode; si no aparece, reiniciar el servidor o sesión.
 - Verificar con `opencode debug skill`.
-- La ruta de skills para OpenCode es: `~/.agents/skills/`.
+- La ruta de instalación depende de la configuración; usa `opencode debug skill` para verla.

@@ -13,10 +13,7 @@
 
 Antes de buscar codigo en una sesion nueva, confirmar que `codesearch` esta usable:
 
-```text
-codesearch_index_status()
-codesearch_find_databases()
-```
+Usa la herramienta de estado disponible en `code-search`; los nombres varían entre versiones. Si el MCP no ofrece estado, usa la CLI si está instalada: `codesearch doctor` y `codesearch index --list`.
 
 Estado esperado:
 
@@ -56,14 +53,15 @@ Antes de ejecutar comandos de shell, detectar el sistema operativo:
 
 Si `codesearch` falla:
 
-1. Ejecutar `codesearch doctor` y `codesearch index --list`.
+1. Si la CLI está instalada, ejecutar `codesearch doctor` y `codesearch index --list`.
 2. Revisar procesos duplicados `codesearch mcp`.
-3. Si hay bloqueo confirmado, detener solo esos procesos y ejecutar `codesearch index`.
-4. Validar con una busqueda CLI y una busqueda MCP antes de continuar el analisis.
+3. Si hay bloqueo confirmado, identificar el proceso y pedir autorización antes de detenerlo o reindexar.
+4. Validar con CLI y MCP si ambos están disponibles. Si uno no está disponible, indicar el fallback y continuar solo con la fuente que sí funciona.
 
 ## Repos multiples
 
 Detectar primero el sistema operativo y luego usar solo el bloque correspondiente.
+Las rutas listadas son ejemplos fijos, no autodetectan todos los repositorios; usa solo las rutas confirmadas por el usuario.
 
 Windows/PowerShell:
 

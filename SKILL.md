@@ -13,14 +13,9 @@ Coordinar los skills `code-search`, `docx-generator` y `commit-msg` usando una e
 
 Carga este skill como primer paso para cualquier solicitud que incluya intenciones como: busca, buscar, encuentra, localizar, explora, analiza, revisar codigo, entender modulo, documentar, generar docx, commit, mensaje de commit, cambios de git o ahorrar tokens.
 
-Si el skill no aparece en la lista disponible, continua con `code-search` y reporta el problema como cache/catalogo de skills. Verifica despues con `opencode debug skill` y confirma que exista en esta ruta de OpenCode:
+Si el skill no aparece en la lista disponible, confirma su disponibilidad y ruta efectiva con `opencode debug skill`; no asumas un directorio fijo, porque depende de la configuración. Si el diagnóstico lo encuentra pero la sesión no lo carga, reinicia la sesión o el servidor.
 
-- Windows: `%USERPROFILE%\.agents\skills\token-efficient-workflow\SKILL.md`
-- Linux/macOS: `$HOME/.agents/skills/token-efficient-workflow/SKILL.md`
-
-OpenCode puede cachear el catalogo al iniciar la sesion. Si `opencode debug skill` lo muestra pero `skill({ name: "token-efficient-workflow" })` falla, reiniciar la sesion o servidor de OpenCode es la solucion esperada.
-
-**Fallback con find-skills**: si el skill no aparece tras reiniciar, usa `find-skills` para localizarlo o verificar que el archivo existe en la ruta correcta.
+**Fallback con find-skills**: si el skill sigue sin aparecer, usa `find-skills` si está disponible para localizarlo.
 
 ## Tabla de contenidos
 
@@ -31,7 +26,7 @@ OpenCode puede cachear el catalogo al iniciar la sesion. Si `opencode debug skil
 - [Flujo A: análisis de código](#flujo-a-análisis-de-código-con-mínimo-contexto)
 - [Flujo B: generar DOCX](#flujo-b-generar-docx-desde-análisis-de-código)
 - [Flujo C: generar mensaje de commit](#flujo-c-generar-mensaje-de-commit-con-mínimo-contexto)
-- [Flujo D: búsqueda web integrada](#flujo-d-búsqueda-web-integrada-con-codesearch-ahorro-de-tokens)
+- [Flujo D: búsqueda web y caché](#flujo-d-búsqueda-web-y-caché)
 - [Troubleshooting express](#troubleshooting-express)
 - [Recuperación de code-search](#recuperacion-de-code-search)
 - [Skills opcionales recomendados](#skills-opcionales-recomendados)
@@ -79,17 +74,11 @@ Evita estas acciones como primera opción — siempre hay una alternativa que ga
 ❌ documentar comportamiento inferido como si fuera confirmado
 ```
 
-**En su lugar, haz esto:**
-
-```text
-skill({ name: "code-search" })
-```
-
-Después usa búsqueda semántica, referencias y filtros por ruta para obtener resultados compactos.
+**En su lugar:** carga `code-search` si está disponible y usa búsqueda semántica, referencias y filtros por ruta para obtener resultados compactos.
 
 ## Skills opcionales recomendados
 
-Estos skills complementan el flujo principal según el tipo de tarea. Se cargan bajo demanda, no automáticamente.
+Estos skills complementan el flujo principal según el tipo de tarea. Se cargan bajo demanda, no automáticamente; comprueba que cada skill esté instalado antes de cargarlo. Si no está disponible, sigue el flujo normal sin él.
 
 ### Por tipo de tarea
 
@@ -99,7 +88,7 @@ Estos skills complementan el flujo principal según el tipo de tarea. Se cargan 
 | Cambios de código | `lint-format` + `test-runner` + `security-check` |
 | Commit / PR | `commit-msg` → `pr-writer` → `changelog-release` |
 | Datos / Infraestructura | `postgresqldb` + `migration-safety` + `ci-triage` |
-| Preguntas generales / web | `searchmcp` |
+| Preguntas generales / web | Usa la herramienta MCP `searchmcp` si está disponible |
 | Diseño de interfaces | `interface-design` |
 
 ### Integración con el flujo principal
@@ -134,6 +123,8 @@ Si toca datos/infra:
 
 Carga un skill opcional cuando detectes intención explícita:
 
+La disponibilidad o carga de `test-runner` no autoriza a ejecutar pruebas: hazlo solo si el usuario lo pide o las instrucciones aplicables lo requieren.
+
 - `lint-format`: usuario menciona "lint", "formatear", "calidad", "estilo"
 - `test-runner`: usuario menciona "test", "prueba", "correr tests", "pytest"
 - `security-check`: usuario menciona "seguridad", "secretos", "vulnerabilidad", "scan"
@@ -150,16 +141,19 @@ Debes cargar los skills en este orden según la tarea:
 
 1. `code-search` para ubicar archivos, símbolos, referencias y comportamiento.
 2. `postgresqldb` cuando se requiera conexión a PostgreSQL o consultas SQL.
-3. `searchmcp` cuando se requiera información de la web (búsquedas web, información actualizada, etc.).
-4. `docx-generator` solo si el usuario pidió generar un `.docx`.
-5. `commit-msg` solo si el usuario pidió mensaje de commit o hacer commit.
+3. `docx-generator` solo si el usuario pidió generar un `.docx`.
+4. `commit-msg` solo si el usuario pidió mensaje de commit o hacer commit.
+
+Para búsquedas web, usa la herramienta MCP `searchmcp` si está disponible; no es un skill que debas cargar.
 
 ## Flujo recomendado
 
 Usa este orden para ahorrar tokens y evitar cargar contexto innecesario:
 
 ```text
-token-efficient-workflow -> code-search -> docx-generator -> commit-msg
+token-efficient-workflow -> code-search
+  -> docx-generator (solo para DOCX)
+  -> commit-msg (solo para mensajes de commit)
 ```
 
 `code-search` debe ser el primer paso para ubicar archivos, símbolos y referencias. `docx-generator` y `commit-msg` deben consumir un resumen compacto de evidencia, no el repositorio completo.
@@ -193,139 +187,19 @@ Rutas base por sistema:
 - Para rutas de `codesearch` en respuestas, preferir rutas relativas al repositorio cuando sea posible.
 - Para `filter_path`, usar separadores `/` porque funcionan mejor como filtros portables: `Documents/Proyectos/ticket/`.
 
-## Python environments y múltiples versiones
-
-Cuando trabajes con proyectos Python que tengan múltiples entornos, ten en cuenta que existen varios sistemas de entorno:
-
-### Sistemas de entorno comunes
-
-- **uv** (crea `.venv` en el proyecto, activación con `uv run` o `.venv/Scripts/python`)
-- **venv/virtualenv** (crea carpeta `venv/` o `.venv`)
-- **conda** (`conda env list`, `conda run -n`)
-- **pyenv** (`pyenv versions`, `pyenv local`)
-- **system Python** (directo, sin entorno)
-- **Docker** (Python dentro de contenedor)
-
-El patrón `.venv` es el standard de uv y también es común en proyectos que usan `python -m venv .venv`.
-
-### Deteccion de entorno activo
-
-```powershell
-# Cualquier sistema
-python --version
-Get-Command python  # Windows PowerShell
-
-# uv (buscar .venv o uv.lock en el proyecto)
-if (Test-Path ".venv") { Write-Host "uv/venv: .venv detected" }
-if (Test-Path "uv.lock") { Write-Host "uv project" }
-
-# conda
-conda env list
-$env:CONDA_DEFAULT_ENV
-
-# pyenv
-pyenv version
-```
-
-```bash
-# Cualquier sistema
-python --version
-which python
-
-# uv
-ls .venv 2>/dev/null && echo "venv detected"
-test -f uv.lock && echo "uv project"
-
-# conda
-conda env list
-
-# pyenv
-pyenv versions
-```
-
-### Ejecutar en entorno especifico
-
-```powershell
-# uv (recomendado para .venv)
-uv run python -c "print('OK')"
-
-# .venv directo (Windows)
-.\.venv\Scripts\python.exe -c "print('OK')"
-
-# .venv directo (Linux/macOS)
-./.venv/bin/python -c "print('OK')"
-
-# venv (carpeta venv/)
-.\venv\Scripts\python.exe -c "print('OK')"
-./venv/bin/python -c "print('OK')"
-
-# conda
-conda run -n nombre_entorno python -c "print('OK')"
-
-# pyenv
-~/.pyenv/versions/3.10.0/bin/python -c "print('OK')"
-
-# system
-python -c "print('OK')"
-```
-
-```bash
-# uv (recomendado para .venv)
-uv run python -c "print('OK')"
-
-# .venv directo
-./.venv/bin/python -c "print('OK')"
-
-# venv
-venv/bin/python -c "print('OK')"
-
-# conda
-conda run -n nombre_entorno python -c "print('OK')"
-
-# pyenv
-~/.pyenv/versions/3.10.0/bin/python -c "print('OK')"
-
-# system
-python -c "print('OK')"
-```
-
-**Nota para uv**: `uv run` detecta automáticamente el `.venv` en el proyecto sin necesidad de activación.
-
-### Compatibilidad de versiones
-
-- MCP SDK (Model Context Protocol) de Anthropic requiere **Python 3.10+**
-- ChromaDB requiere Python compatible según su versión instalada
-- sentence-transformers funciona en 3.9+ pero con MCP se necesita 3.10+
-- Si un paquete no esta disponible para la version del proyecto, se debe actualizar la version de Python del entorno
-
-### Empaquetado de proyectos Python
-
-Cuando el usuario pida generar binarios o Docker para su proyecto:
-
-1. **Docker (recomendado para servidores)** — crear Dockerfile que incluya Python, dependencias y código. Portable, rollback fácil.
-2. **PyInstaller/Nuitka** — binarios standalone pero requiere build cruzado para Linux desde Windows (usar Docker). Tamaño ~200MB por binario.
-
-Regla: no asumir que el servidor destino tiene Python instalado. Si el proyecto usa MCP SDK, requiere Python 3.10+ en el servidor.
-
 ## Política de ahorro de tokens
 
 ### 1. Preflight una sola vez por sesión
 
 Valida `code-search` una vez al inicio de la sesión o cuando cambie el repositorio.
 
-Preflight MCP recomendado:
+Usa la herramienta de estado disponible en `code-search` y confirma que el índice esté listo y tenga contenido. Los nombres de las herramientas pueden variar entre versiones.
 
-```text
-codesearch_index_status()
-codesearch_find_databases()
-```
-
-El estado esperado es:
+Si la herramienta devuelve estos campos, el estado esperado es:
 
 - `indexed=true`
 - `status="ready"`
 - `total_chunks > 0`
-- `dimensions=384` para `minilm-l6-q`
 
 Comandos sugeridos:
 
@@ -337,7 +211,7 @@ codesearch index --list
 
 Si MCP está disponible, prefiere MCP sobre CLI.
 
-Si `codesearch_index_status()` falla pero CLI funciona, usa CLI como fallback y reporta que el MCP necesita reiniciarse.
+Si el MCP no está disponible pero la CLI funciona, usa la CLI como fallback y señala esa limitación.
 
 ### 1.1 Exclusiones obligatorias
 
@@ -395,7 +269,7 @@ filter_path="public/js/"
 
 Si el índice es global o padre, el `filter_path` es obligatorio.
 
-Cuando `codesearch_find_databases()` indique que la base esta en un directorio padre o global, nunca busques sin filtro porque puede mezclar resultados de varios proyectos.
+Si el índice es global o está en un directorio padre, nunca busques sin filtro porque puede mezclar resultados de varios proyectos.
 
 Ejemplos para este entorno:
 
@@ -471,17 +345,19 @@ Errores comunes y solución inmediata (antes de ir a recuperación larga):
 | Error | Solución |
 |-------|----------|
 | `Index not built` / `Vector store empty` | `codesearch index` |
-| `LockBusy` / `Failed to acquire index lock` | Esperar 5s o matar procesos `codesearch.exe` duplicados |
+| `LockBusy` / `Failed to acquire index lock` | Inspeccionar procesos y pedir autorización antes de detener uno |
 | `FileAlreadyExists("*.del")` | `codesearch index --force` o reindexar |
 | `Multiple git repositories found` | Ejecutar `codesearch index` dentro de cada repositorio por separado |
 | MCP no responde pero CLI sí | Usar CLI como fallback temporal, reportar que MCP necesita reiniciarse |
-| `codesearch_index_status()` falla | Verificar con `codesearch doctor` y `codesearch index --list` |
+| El estado MCP no está disponible | Verificar con `codesearch doctor` y `codesearch index --list` si la CLI está instalada |
 
 ## Recuperacion de code-search
 
 Usa esta seccion cuando las busquedas fallen con errores como `Index not built`, `Vector store empty`, `LockBusy`, `Failed to acquire index lock` o `FileAlreadyExists("*.del")`.
 
 Si `codesearch index` se ejecuta desde una carpeta padre y falla con `Multiple git repositories found in subdirectories`, no intentes forzar un indice unico. Primero detecta el sistema operativo, luego ejecuta el bloque correspondiente. `codesearch` debe ejecutarse dentro de cada repositorio Git por separado y esperar a que termine cada indexacion antes de iniciar la siguiente.
+
+Las listas siguientes son ejemplos fijos, no autodetectan todos los repositorios. Si el usuario pide indexarlos todos, confirma primero la carpeta y los repositorios que entran en el alcance.
 
 Windows/PowerShell:
 
@@ -536,7 +412,7 @@ cd "$HOME/Documents/Proyectos/ticket"
 opencode serve
 ```
 
-Si el usuario pide indexar todos los repositorios, ejecuta el patron anterior y espera a que finalice. No respondas como completado hasta validar cada repositorio con `codesearch doctor` o una busqueda de prueba desde su carpeta.
+Si el usuario pide indexar varios repositorios, usa solo las rutas confirmadas y espera a que termine cada índice. No respondas como completado hasta validar cada repositorio con `codesearch doctor` o una búsqueda de prueba desde su carpeta.
 
 1. Diagnostica el estado:
 
@@ -551,19 +427,21 @@ codesearch index --list
 Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'codesearch|opencode|node' } | Select-Object ProcessId,Name,CommandLine
 ```
 
-3. Si el bloqueo es confirmado y no hay indexacion intencional en curso, detener solo procesos `codesearch.exe` con `codesearch mcp` y reindexar:
+3. Si el bloqueo es confirmado y no hay indexación en curso, identifica solo el proceso que lo causa. Pide autorización antes de detenerlo o reindexar, porque puede interrumpir trabajo activo:
 
 ```powershell
 Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'codesearch.exe' -and $_.CommandLine -eq 'codesearch mcp' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 codesearch index
 ```
 
-4. Verifica que quede listo:
+4. Verifica que quede listo desde el repositorio que vas a analizar:
 
 ```bash
 codesearch doctor
-codesearch search "consulta de prueba" --filter-path "Documents/Proyectos/" --max-results 5 --scores
+codesearch search "consulta de prueba" --max-results 5 --scores
 ```
+
+Si el índice es global, añade un `--filter-path` que corresponda a la ruta real del repositorio.
 
 5. Criterio de exito:
 
@@ -579,14 +457,8 @@ Usa este flujo si el usuario pide documentación `.docx`.
 1. Ejecuta primero el Flujo A.
 2. Construye un Markdown temporal con evidencia compacta.
 3. Carga `docx-generator`.
-4. Usa `scripts/docx_skill.py` para generar el documento.
+4. Sigue las instrucciones del skill `docx-generator`; no asumas que su script está dentro del proyecto analizado.
 5. No incluyas en el documento archivos no validados.
-
-Comando base:
-
-```bash
-python scripts/docx_skill.py --output reporte.docx --title "Reporte técnico" --input reporte.md --lang es-ES
-```
 
 ## Flujo C: generar mensaje de commit con mínimo contexto
 
@@ -605,76 +477,30 @@ git diff --name-only
 4. Si el cambio afecta código y no queda claro, usa `code-search` para entender el módulo sin leer de más.
 5. Genera un mensaje en español, sin prefijos tipo `feat:` o `fix:`.
 
-### Commitear cambios
+### Ejecutar un commit
 
-Si el usuario pide hacer el commit:
-
-```bash
-git add <archivos>
-git commit -m "Titulo del commit" -m "Body explicativo si es necesario"
-git status --short
-```
-
-Verificar siempre `git status --short` despues del commit para confirmar que el repo esta limpio.
+Este flujo solo prepara el mensaje. Si el usuario pide ejecutar el commit, usa el agente o proceso Git disponible y sigue sus reglas de inspección y confirmación; no stages ni crees commits desde este flujo.
 
 ### Archivos no relacionados
 
 Si existen archivos en el working directory que no pertenecen al commit (ej: build scripts, spec files, archivos de configuracion de empaquetado), no incluirlos automáticamente. Solo hacer commit de lo que el usuario confirme explícitamente.
 
-## Flujo D: búsqueda web integrada con codesearch (ahorro de tokens)
+## Flujo D: búsqueda web y caché
 
-Usa este flujo cuando necesites información de la web y quieras guardarla para consultas futuras sin gastar tokens adicionales.
+Usa este flujo cuando quieras reutilizar resultados web guardados por `searchmcp`. La caché puede evitar búsquedas repetidas, pero no implica que `codesearch` pueda acceder a esos resultados.
 
 ### Principio
 
-**"Buscar en web una sola vez, preguntar después con codesearch infinitamente"**
+**Busca una vez y reutiliza los resultados guardados cuando estén disponibles.**
 
 ### Pasos
 
-1. **Búsqueda web**: Usa `searchmcp.search_and_save(query)` para buscar y guardar en `.search/`
-
-2. **Indexar**: Ejecuta `codesearch index` para que codesearch pueda buscar en los resultados
-
-3. **Consultas siguientes**: Usa `codesearch_semantic_search()` sobre la carpeta `.search/`
-
-### Estructura de archivos
-
-```
-proyecto/
-├── .search/                    # Búsquedas guardadas
-│   └── {timestamp}/          # Una subcarpeta por búsqueda
-│       ├── results.md         # Título, URL, snippet
-│       └── query.txt          # Query original para referencia
-└── ...
-```
-
-### Comandos
-
-```bash
-# Búsqueda web y guardar
-searchmcp search_and_save("consulta", max_results=10)
-
-# Indexar resultados (Windows)
-codesearch index --sync
-
-# Buscar en resultados guardados
-codesearch search "pregunta sobre resultados" --filter-path ".search/"
-```
-
-### Detalle de costos
-
-| Paso | Herramienta | Costo |
-|------|-------------|-------|
-| Búsqueda web | searchmcp | ~100-500 tokens API |
-| Guardar en .search/ | filesystem | 0 tokens |
-| Indexar | codesearch | 0 tokens |
-| Consultas futuras | codesearch | 0 tokens API |
+1. Usa `searchmcp` para consultar la web. Si quieres conservar los resultados, usa `search_and_save` si está disponible y toma como referencia la ruta que devuelve.
 
 ### Recomendación
 
-- Usa `search_and_save` en lugar de `search` cuando quieras guardar resultados
-- Re-indexa con `--sync` después de guardar nuevas búsquedas
-- Para preguntas sobre resultados previos, usa codesearch directamente sin repetir búsqueda web
+- Para resultados guardados, usa las herramientas de caché de `searchmcp` si están disponibles.
+- No asumas que los resultados se guardaron en `.search/` ni que `codesearch` puede encontrarlos o indexarlos.
 
 ## Reglas para evitar gasto innecesario
 
@@ -701,9 +527,9 @@ Solo aumenta el contexto cuando ocurra una de estas condiciones:
 Cuando el usuario haga varias preguntas en un mismo mensaje:
 
 1. **Identifica la intención principal** — Responde primero la más relevante o la que defina el alcance.
-2. **Divide las demás en sub-tareas** — Si son 3+ preguntas relacionadas, предложи решение по частям.
+2. **Divide las demás en sub-tareas** — Si son 3+ preguntas relacionadas, enumera las pendientes y resuelve las que tengan alcance claro.
 3. **Usa el formato compacto** — Cada hallazgo en 2-3 líneas máximo.
-4. **Sugiere siguiente paso** — Al terminar, pregúntale cuál quiere abordar primero.
+4. **Sugiere siguiente paso** — Pregunta solo si queda una decisión pendiente.
 
 **Ejemplo:**
 
@@ -720,7 +546,7 @@ Siguiente: ¿quieres que revise los tests del Login controller o profundizo en e
 
 ## Contexto insuficiente: cuándo detenerse
 
-Usa este criterio antes deforzar una búsqueda o inventar una respuesta:
+Usa este criterio antes de forzar una búsqueda o inventar una respuesta:
 
 **Detente y pide más información cuando:**
 
@@ -734,13 +560,11 @@ Usa este criterio antes deforzar una búsqueda o inventar una respuesta:
 ```text
 ❌ No tengo suficiente contexto para responder con confianza.
 Necesito:
-1. Más specifics sobre qué buscas (módulo, funcionalidad, archivo)
+1. Más detalles sobre qué buscas (módulo, funcionalidad, archivo)
 2. O el nombre exacto de un símbolo/método/controlador
 
 Alternativa: puedo buscar con términos más amplios, pero los resultados pueden ser imprecisos.
 ```
-
-## Reglas para evitar gasto innecesario
 
 ## Respuesta final esperada
 
@@ -750,7 +574,7 @@ Entrega siempre:
 2. Qué se encontró.
 3. Archivos o símbolos clave.
 4. Qué se evitó leer para ahorrar tokens.
-5. Siguiente acción sugerida.
+5. Siguiente acción sugerida, si aplica.
 
 Si se generó DOCX, incluye la ruta del archivo.
 Si se generó commit, incluye el mensaje sugerido.
